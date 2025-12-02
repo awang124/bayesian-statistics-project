@@ -6,9 +6,9 @@
 \usepackage{mathtools}
 \setlength\parindent{0pt}
 
-\title{Spatial Gaussian Process Regression for \\ Probabilistic Optical Flow Estimation}
-\author{Andy Wang}
-\date{8 May 2025}
+\title{Spatial Gaussian Process Regression for \\ Bayesian Optical Flow Estimation}
+\author{Andy Wang \& Luka Orquiza}
+\date{2 December 2025}
 \begin{document}
 \frame{\titlepage}
 
@@ -24,38 +24,39 @@
 \newcommand{\rb}{\right]}
 \newcommand{\lr}{\left\{}
 \newcommand{\rr}{\right\}}
-\newcommand{\mb}{\mathbf}
-\newcommand{\mse}{\text{MSE}}
-\newcommand{\var}{\text{Var}}
+\newcommand{\cov}{\text{Cov}}
+\newcommand{\mle}{\text{MLE}}
 \newcommand{\bm}{\boldsymbol{\mu}}
 \newcommand{\blankline}{\\\phantom{}\\}
+
+\renewcommand{\vec}{\boldsymbol}
 
 \begin{frame}{Table of Contents}
 \begin{enumerate}
 \item Background and Motivation
-\item Overview of Gaussian Processes
+\item Probabilistic Method
 \item Formulation of GP Regression
 \item Implementation and Results
-\item Discussion and Conclusion
+\item Discussion and Next Steps
 \end{enumerate}
 \end{frame}
 
 \begin{frame}{Motion in Image Sequences}
 \begin{center}
-\includegraphics[totalheight=3.0cm]{img/3.png}
+\includegraphics[totalheight=3.0cm]{~/Documents/sem4/mia/proj/img/3.png}
 \end{center}
-Given two sequential images $I:\mathcal{D}\times[0,T]\to\mathcal{R}$, i.e. \[I(x,y,t)\text{ and }I(x,y,t+\delta t)\] (for fixed $t$ and $\delta t$), the optical flow at time $t$ is a vector field \[\mb{f}(x,y,t)=\lp u(x,y,t),v(x,y,t)\rp\] that transforms one image into the next: \[I\lp x+u(x,y,t),y+v(x,y,t),t+\delta t\rp\simeq I(x,y,t)\]
+Given two sequential images $I:\mathcal{D}\times[0,T]\to\mathcal{R}$, i.e. \[I(x,y,t)\text{ and }I(x,y,t+\delta t)\] (for fixed $t$ and $\delta t$), the optical flow at time $t$ is a vector field \[\vec{f}(x,y,t)=\lp u(x,y,t),v(x,y,t)\rp\] that transforms one image into the next: \[I\lp x+u(x,y,t),y+v(x,y,t),t+\delta t\rp\simeq I(x,y,t)\]
 \footnotetext{Barron, J. L., Fleet, D. J., \& Beauchemin, S. S. (1994). Performance of Optical Flow Techniques. \textit{International Journal of Computer Vision, 12}(1), 43-77.}
 \end{frame}
 
-\begin{frame}{Horn-Schunck Optical Flow Computation}
-Data correlation constraint: object brightness remains constant while location changes. \[\frac{d}{dt}I(x(t),y(t),t)=\frac{\partial I}{\partial x}u+\frac{\partial I}{\partial y}v+\frac{\partial I}{\partial t}=0,\quad u\coloneq\frac{dx}{dt},v\coloneq\frac{dy}{dt}\] Its solution is not unique, so we introduce regularity of $u,v$, i.e. small $\nabla u,\nabla v$. \\ We determine $u,v$ for each $x,y$ by minimizing an energy (loss) function: \[E[u,v]=\iint_D\lb\lp\frac{\partial I}{\partial x}u+\frac{\partial I}{\partial y}v+\frac{\partial I}{\partial t}\rp^2+\alpha\lp\|\nabla u\|^2+\|\nabla v\|^2\rp\rb\,dx\,dy\] Using calculus of variations, we obtain the Euler-Lagrange equations: \[\small \frac{\partial I}{\partial x}\lp\frac{\partial I}{\partial x}u+\frac{\partial I}{\partial y}v+\frac{\partial I}{\partial t}\rp-\alpha\nabla^2u=0\qquad\frac{\partial I}{\partial y}\lp\frac{\partial I}{\partial x}u+\frac{\partial I}{\partial y}v+\frac{\partial I}{\partial t}\rp-\alpha\nabla^2v=0\] Approximating $\nabla^2u\approx\bar{u}-u$, we obtain an iterative scheme: \[u^{k+1}=\bar{u}^k-I_x\lp\frac{I_x\bar{u}^k+I_y\bar{v}^k+I_t}{\alpha^2+I_x^2+I_y^2}\rp,\ v^{k+1}=\bar{v}^k-I_y\lp\frac{I_x\bar{u}^k+I_y\bar{v}^k+I_t}{\alpha^2+I_x^2+I_y^2}\rp\]
-\footnotetext{Horn, B. K. P., \& Schunck, B. G. (1981). Determining Optical Flow. \textit{Artificial Intelligence, 17}(1-3), 185-203.}
+\begin{frame}{Lucas-Kanade Method}
+Brightness constancy assumption: \[\frac{d}{dt}I(x(t),y(t),t)=\frac{\partial I}{\partial x}u+\frac{\partial I}{\partial y}v+\frac{\partial I}{\partial t}=0,\quad u\coloneq\frac{dx}{dt},v\coloneq\frac{dy}{dt}\] Underdetermined, so assume same $(u(x,y),v(x,y))\ \forall(x,y)\in W$: \[\underbrace{\begin{bmatrix}I_x(x_1,y_1)&I_y(x_1,y_1)\\\vdots&\vdots\\I_x(x_n,y_n)&I_y(x_n,y_n)\end{bmatrix}}_{\vec{\nabla I}^T}\underbrace{\begin{bmatrix}u\\v\end{bmatrix}}_{\vec{f}}=\underbrace{\begin{bmatrix}-I_t(x_1,y_1)\\\vdots\\-I_t(x_n,y_n)\end{bmatrix}}_{-\vec{I_t}}\] Overdetermined: least squares solution is $\vec{v}=\lp\vec{A}^T\vec{A}\rp^{-1}\vec{A}^T\vec{b}$: \[\begin{bmatrix}u\\v\end{bmatrix}=\begin{bmatrix}\sum I_x(x_i,y_i)^2&\sum I_x(x_i,y_i)I_y(x_i,y_i)\\\sum I_x(x_i,y_i)I_y(x_i,y_i)&\sum I_y(x_i,y_i)^2\end{bmatrix}^{-1}\begin{bmatrix}-\sum I_x(x_i,y_i)I_t(x_i,y_i)\\-\sum I_y(x_i,y_i)I_t(x_i,y_i)\end{bmatrix}\] Optional weighting of pixels via diagonal matrix $\vec{W}$: \[\vec{v}=\lp\vec{A}^T\vec{WA}\rp^{-1}\vec{A}^T\vec{Wb}\]
+\footnotetext{Lucas, B. D., \& Kanade, T. (1981). An Iterative Image Registration Technique with an Application to Stereo Vision. \textit{7th International Joint Conference on Artificial Intelligence, 2}, 674-679.}
 \end{frame}
 
-\begin{frame}{Lucas-Kanade Optical Flow Computation}
-Same assumption (brightness constancy) as Horn-Schunck: \[\frac{\partial I}{\partial x}u+\frac{\partial I}{\partial y}v+\frac{\partial I}{\partial t}=0\] We assume same $(u(x,y),v(x,y))\ \forall(x,y)\in W$. The constraints for $W$ become: \[\begin{bmatrix}I_x(x_1,y_1)&I_y(x_1,y_1)\\\vdots&\vdots\\I_x(x_n,y_n)&I_y(x_n,y_n)\end{bmatrix}\begin{bmatrix}u\\v\end{bmatrix}=\begin{bmatrix}-I_t(x_1,y_1)\\\vdots\\-I_t(x_n,y_n)\end{bmatrix}\] This system is overdetermined, so its least squares solution is $\mb{v}=\lp\mb{A}^T\mb{A}\rp^{-1}\mb{A}^T\mb{b}$: \[\begin{bmatrix}u\\v\end{bmatrix}=\begin{bmatrix}\sum I_x(x_i,y_1)^2&\sum I_x(x_i,y_i)I_y(x_i,y_i)\\\sum I_x(x_i,y_i)I_y(x_i,y_i)&\sum I_y(x_i,y_i)^2\end{bmatrix}^{-1}\begin{bmatrix}-\sum I_x(x_i,y_i)I_t(x_i,y_i)\\-\sum I_y(x_i,y_i)I_t(x_i,y_i)\end{bmatrix}\] We may introduce weights via diagonal matrix $\mb{W}$ to prioritize certain pixels, yielding: \[\mb{v}=\lp\mb{A}^T\mb{WA}\rp^{-1}\mb{A}^T\mb{Wb}\]
-\footnotetext{Lucas, B. D., \& Kanade, T. (1981). An Iterative Image Registration Technique with an Application to Stereo Vision. \textit{7th International Joint Conference on Artificial Intelligence, 2}, 674-679.}
+\begin{frame}{Lucas-Kanade Results}
+\begin{center}\includegraphics[totalheight=3.0cm]{img/yosemite.png}\\\includegraphics[totalheight=5.0cm]{img/lucas-kanade.png}\end{center}
+\footnotetext{Barron, J. L., Fleet, D. J., \& Beauchemin, S. S. (1994). Performance of Optical Flow Techniques. \textit{International Journal of Computer Vision, 12}(1), 43-77.}
 \end{frame}
 
 \begin{frame}{Probabilistic Motivation}
@@ -68,77 +69,52 @@ Classical methods produce deterministic point estimates. \\ Uncertainty is inher
 \item Aperture problem
 \item Incompatible motions in localized regions
 \end{itemize}
-Quantification of confidence is desirable for critical aplications, such as:
+Quantification of confidence is desirable for safety-critical aplications, e.g.:
 \begin{itemize}
 \item Autonomous navigation
-\item Computer-integrated surgery/healthcare
+\item Computer-integrated surgery
 \item Real-time surveillance
 \end{itemize}
 \end{frame}
 
-\begin{frame}{1D Gaussian Processes}
-A Gaussian process is a infinite collection of random variables: \[\{X_t\}_{t\in T}\sim\mathcal{GP}(m(t),k(t,t'))\] such that every finite subset of $\{X_t\}_{t\in T}$ is multivariate Gaussian: \[\begin{bmatrix}X_{k_1}\\\ddots\\X_{k_n}\end{bmatrix}\sim\mathcal{N}\lp\begin{bmatrix}m(t_{k_1})\\\vdots\\m(t_{k_n})\end{bmatrix},\begin{bmatrix}k(t_{k_1},t_{k_1})&\cdots&k(t_{k_1},t_{k_n})\\\vdots&\ddots&\vdots\\k(t_{k_n},t_{k_1})&\cdots&k(t_{k_n},t_{k_n})\end{bmatrix}\rp\] Common mean functions include: \[m(t)=0,\ m(t)=\mu,\ m(t)=at+b,\ m(t)=a_0+a_1t+\cdots+a_nt^n\] Common covariance kernels include: \[k(t,t')=\sigma^2\exp\lp-\frac{\lp t-t'\rp^2}{2\lambda^2}\rp,\ k(t,t')=\sigma^2\exp\lp-\frac{|t-t'|}{\lambda}\rp\] Mean/covariance encode process assumptions.
+\begin{frame}{Wang-Orquiza Method}
+Suppose $\vec{y}=\vec{A}\vec{x}+\vec{\eta}$, $\vec{A}$ fixed, $\vec{x}$ fixed unknown, $\vec{y}$ observed, $\vec{\eta}\sim\mathcal{N}(\vec{0},\vec{H})$: \[\hat{\vec{x}}_{\mle}(\vec{y})=\arg\max_{\vec{x}}f_{\vec{y}}(\vec{y}|\vec{x})=\arg\max_{\vec{x}}f_{\vec{\eta}}(\vec{y}-\vec{A}\vec{x})=\vec{\Sigma}_{\hat{\vec{x}}}\vec{A}^T\vec{H}^{-1}\vec{y}\] \[\vec{\Sigma}_{\hat{\vec{x}}}=\cov[\hat{\vec{x}}_{\mle}(\vec{y})-\vec{x}]=(\vec{A}^T\vec{H}^{-1}\vec{A})^{-1}\] Same assumptions as Lucas-Kanade, plus additive Gaussian noise: \[\vec{I_t}=-\vec{\nabla I}^T\vec{f}+\vec{\eta}\qquad\vec{\eta}\sim\mathcal{N}(\vec{0},\vec{H})\] Results above give: \[\hat{\vec{f}}=-\vec{\Sigma}_{\hat{\vec{f}}}\vec{\nabla I}\vec{H}^{-1}\vec{I}_t\qquad\vec{\Sigma}_{\hat{\vec{f}}}=(\vec{\nabla I}\vec{H}^{-1}\vec{\nabla I}^T)^{-1}\] Poor texture around $\vec{x}$ $\implies$ small $\nabla I$ $\implies$ large $\vec{\Sigma}_{\hat{\vec{f}}}$.
 \end{frame}
 
-\begin{frame}{2D Gaussian Processes}
-Spatial Gaussian process: \[\{\mb{f}(\mb{x})\}_{\mb{x}\in\mathcal{D}}=\lr\begin{bmatrix}\mb{u}(\mb{x})\\\mb{v}(\mb{x})\end{bmatrix}\rr_{\mb{x}\in\mathcal{D}}\sim\mathcal{GP}(\mb{m}(\mb{x}),\mb{k}(\mb{x},\mb{x}'))\] Example mean/covariance: \[\mb{m}(\mb{x})=\mb{A}\mb{x}+\mb{b},\ \mb{k}(\mb{x},\mb{x}')=\sigma^2\exp\lp-\frac{\lp t-t'\rp^2}{2\lambda^2}\rp\mb{\Sigma}\] Their joint distribution is \[\begin{bmatrix}\mb{f}(\mb{x}_1)\\\vdots\\\mb{f}(\mb{x}_n)\end{bmatrix}\sim\mathcal{N}\lp\begin{bmatrix}\mb{m}(\mb{x}_1)\\\ddots\\\mb{m}(\mb{x}_n)\end{bmatrix},\begin{bmatrix}\mb{k}(\mb{x}_1,\mb{x}_1)&\cdots&\mb{k}(\mb{x}_1,\mb{x}_n)\\\vdots&\ddots&\vdots\\\mb{k}(\mb{x}_n,\mb{x}_1)&\cdots&\mb{k}(\mb{x}_n,\mb{x}_n)\end{bmatrix}\rp\] A reformulation for easier interpretability (2D): \[\mb{F}\coloneq\begin{bmatrix}\mb{U}(\mb{X})\\\mb{V}(\mb{X})\end{bmatrix}\sim\mathcal{N}\lp\bm\coloneq\begin{bmatrix}\bm_u\\\bm_v\end{bmatrix},\mb{K}\coloneq\begin{bmatrix}\mb{K}_{uu}&\mb{K}_{uv}\\\mb{K}_{vu}&\mb{K}_{vv}\end{bmatrix}\rp\]
+\begin{frame}{Wang-Orquiza Results}
+\begin{center}\includegraphics[totalheight=2.5cm]{img/yosemite.png}\end{center}
+\begin{center}\includegraphics[totalheight=2.5cm]{img/wang-orquiza.png}\end{center}
+\end{frame}
+
+\begin{frame}{Spatial Gaussian Processes}
+2-dimensional Gaussian process (distribution over functions of 2D inputs): \[\vec{f}(\cdot)=\begin{bmatrix}u(\cdot)\\v(\cdot)\end{bmatrix}\sim\mathcal{GP}(\vec{m}(\cdot),\vec{k}(\cdot,\cdot'))\] Example mean \& covariance kernel (affine \& RBF): \[\vec{m}(\cdot)=\vec{A}(\cdot)+\vec{b},\ \vec{k}(\cdot,\cdot')=\exp\lp-\frac{\|\cdot-\cdot'\|^2}{2\lambda^2}\rp\vec{\Sigma}\] Joint distribution of function values at finite subset of points: \[\begin{bmatrix}\vec{f}(\vec{x}_1)\\\vdots\\\vec{f}(\vec{x}_n)\end{bmatrix}\sim\mathcal{N}\lp\begin{bmatrix}\vec{m}(\vec{x}_1)\\\ddots\\\vec{m}(\vec{x}_n)\end{bmatrix},\begin{bmatrix}\vec{k}(\vec{x}_1,\vec{x}_1)&\cdots&\vec{k}(\vec{x}_1,\vec{x}_n)\\\vdots&\ddots&\vdots\\\vec{k}(\vec{x}_n,\vec{x}_1)&\cdots&\vec{k}(\vec{x}_n,\vec{x}_n)\end{bmatrix}\rp\] Equivalently: \[\vec{F}\coloneq\begin{bmatrix}\vec{U}(\vec{X})\\\vec{V}(\vec{X})\end{bmatrix}\sim\mathcal{N}\lp\bm\coloneq\begin{bmatrix}\bm_u\\\bm_v\end{bmatrix},\vec{K}\coloneq\begin{bmatrix}\vec{K}_{uu}&\vec{K}_{uv}\\\vec{K}_{vu}&\vec{K}_{vv}\end{bmatrix}\rp\]
 \end{frame}
 
 \begin{frame}{Gaussian Process Regression}
-Through deterministic methods, we obtain noisy observations $\mb{\tilde{F}}$: \[\mb{\tilde{f}}(\mb{x})=\mb{f}(\mb{x})+\boldsymbol{\eta}(\mb{x}),\ \boldsymbol{\eta}(\mb{x})\sim\mathcal{N}\lp\mb{0},\sigma_{\eta}^2\mb{I}\rp\] The noisy distribution is: \[\mb{\tilde{F}}\big|\mb{F}\sim\mathcal{N}\lp\mb{F},\sigma_{\eta}^2\mb{I}\rp,\ \mb{F}\big|\mb{X}\sim\mathcal{N}\lp\bm,\mb{K}\rp=\mb{\tilde{F}}\implies\mb{\tilde{F}}\big|\mb{X}\sim\mathcal{N}\lp\bm,\mb{K}+\sigma_{\eta}^2\mb{I}\rp\] We want to estimate true optical flows: we form the joint distribution. \[\begin{bmatrix}\mb{F}\\\mb{\tilde{F}}\end{bmatrix}\sim\mathcal{N}\lp\begin{bmatrix}\bm\\\bm\end{bmatrix},\begin{bmatrix}\mb{K}&\mb{K}\\\mb{K}&\mb{K}+\sigma_{\eta}^2\mb{I}\end{bmatrix}\rp\] We derive the conditional distribution: \[\mb{F}|\mb{\tilde{F}}\sim\mathcal{N}\lp\bm+\mb{K}\lp\mb{K}+\sigma_{\eta}^2\mb{I}\rp^{-1}\lp\mb{\tilde{F}}-\bm\rp,\mb{K}-\mb{K}\lp\mb{K}+\sigma_{\eta}^2\mb{I}\rp^{-1}\mb{K}\rp\] Mean serves as estimate, covariance serves as uncertainty.
-\end{frame}
-
-\begin{frame}{Gaussian Process Regression (cont.)}
-We obtain incomplete observations $\mb{F}_X$ and want to interpolate $\mb{F}_*$: \[\begin{bmatrix}\mb{F}_*\\\mb{F}_X\end{bmatrix}\sim\mathcal{N}\lp\begin{bmatrix}\bm_*\\\bm_X\end{bmatrix},\begin{bmatrix}\mb{K}_{**}&\mb{K}_{*X}\\\mb{K}_{X*}&\mb{K}_{XX}\end{bmatrix}\rp\] The conditional distribution is reformulated: \[\mb{F}_*|\mb{F}_X\sim\mathcal{N}\lp\bm_*+\mb{K}_{*X}\lp\mb{K}_{XX}+\sigma_{\eta}^2\mb{I}\rp^{-1}\lp\mb{F}_X-\bm_X\rp,\mb{K}_{**}-\mb{K}_{*X}\lp\mb{K}_{XX}+\sigma_{\eta}^2\mb{I}\rp^{-1}\mb{K}_{X*}\rp\]
+Through Wang-Orquiza method, we obtain noisy observations $\vec{\tilde{F}}$: \[\vec{\tilde{f}}(\vec{x})=\vec{f}(\vec{x})+\boldsymbol{\eta}(\vec{x}),\ \boldsymbol{H}(\vec{x})\sim\mathcal{N}\lp\vec{0},\vec{\Sigma}_{\tilde{\vec{f}}}\rp\] The noisy distribution is: \[\vec{\tilde{F}}\big|\vec{F}\sim\mathcal{N}\lp\vec{F},\vec{\Sigma}_{\tilde{\vec{f}}}\rp,\ \vec{F}\sim\mathcal{N}\lp\bm,\vec{K}\rp\implies\vec{\tilde{F}}\sim\mathcal{N}\lp\bm,\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\rp\] We want to estimate true optical flows: we form the joint distribution. \[\begin{bmatrix}\vec{F}\\\vec{\tilde{F}}\end{bmatrix}\sim\mathcal{N}\lp\begin{bmatrix}\bm\\\bm\end{bmatrix},\begin{bmatrix}\vec{K}&\vec{K}\\\vec{K}&\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\end{bmatrix}\rp\] We derive the conditional distribution (posterior): \[\vec{F}|\vec{\tilde{F}}\sim\mathcal{N}\lp\bm+\vec{K}\lp\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\rp^{-1}\lp\vec{\tilde{F}}-\bm\rp,\vec{K}-\vec{K}\lp\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\rp^{-1}\vec{K}\rp\] Mean serves as estimate, covariance as uncertainty.
 \end{frame}
 
 \begin{frame}{Parameter Fitting}
-Mean/covariance parameters (e.g. $\sigma^2,\lambda^2,\sigma_{\eta}^2$) are optimized by maximizing the likelihood of observing $\mb{\tilde{F}}$. This likelihood is: \[p\lp\mb{\tilde{F}}|\mb{X}\rp\propto\frac{1}{\sqrt{\det\lp\mb{K}+\sigma_{\eta}^2\mb{I}\rp}}\exp\lp-\frac{1}{2}\lp\mb{\tilde{F}}-\bm\rp^T\lp\mb{K}+\sigma_{\eta}^2\mb{I}\rp^{-1}\lp\mb{\tilde{F}}-\bm\rp\rp\] We use the negative log-likelihood for convenience: \[-\log p\lp\mb{\tilde{F}}|\mb{X}\rp\propto\frac{1}{2}\lp\mb{\tilde{F}}-\bm\rp^T\lp\mb{K}+\sigma_{\eta}^2\mb{I}\rp^{-1}\lp\mb{\tilde{F}}-\bm\rp+\frac{1}{2}\det\lp\mb{K}+\sigma_{\eta}^2\mb{I}\rp\] We minimize this numerically via gradient descent.
+Mean/covariance parameters (e.g. lengthscale $\lambda^2$) are optimized by maximizing the marginal likelihood of observations $\vec{\tilde{F}}$. This likelihood is: \[p\lp\vec{\tilde{F}}\rp\propto\frac{1}{\sqrt{\det\lp\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\rp}}\exp\lp-\frac{1}{2}\lp\vec{\tilde{F}}-\bm\rp^T\lp\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\vec{I}\rp^{-1}\lp\vec{\tilde{F}}-\bm\rp\rp\] In practice we minimize negative log-likelihood via gradient descent: \[-\log p\lp\vec{\tilde{F}}\rp\propto\frac{1}{2}\lp\vec{\tilde{F}}-\bm\rp^T\lp\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\rp^{-1}\lp\vec{\tilde{F}}-\bm\rp+\frac{1}{2}\det\lp\vec{K}+\vec{\Sigma}_{\tilde{\vec{f}}}\rp\] We minimize this numerically via gradient descent.
 \end{frame}
 
 \begin{frame}{Parameter Fitting (cont.)}
-Let $\varphi$ be a parameter of $\mb{m},\ \mb{y}=\mb{\tilde{F}}-\bm,\ \mb{K}_y=\mb{K}+\sigma_{\eta}^2\mb{I}$: \[\frac{\partial\mathcal{L}}{\partial\varphi}=\frac{1}{2}\lb\lp\frac{\partial\mb{y}^T}{\partial\varphi}\rp\mb{K}_y^{-1}\mb{y}+\mb{y}^T\mb{K}_y\lp\frac{\partial\mb{y}}{\partial\varphi}\rp\rb=\frac{1}{2}\lp2\mb{y}^T\mb{K}_y\lp\frac{\partial\mb{y}}{\partial\varphi}\rp\rp=-\mb{y}^T\mb{K}_y\lp\frac{\partial\mb{m}}{\partial\varphi}\rp\] Let $\theta$ be a parameter of $\mb{k}$: \[\frac{\partial\mathcal{L}}{\partial\theta}=\mb{y}^T\lp\frac{\partial\mb{K}_y^{-1}}{\partial\theta}\rp\mb{y}+\frac{\partial|\mb{K}_y|}{\partial\theta}=-\frac{1}{2}\mb{y}^T\mb{K}^{-1}\lp\frac{\partial\mb{K}_y}{\partial\theta}\rp\mb{K}^{-1}\mb{y}+\frac{1}{2}\text{tr}\lp\mb{K}_y^{-1}\lp\frac{\partial\mb{K}_y}{\partial\theta}\rp\rp\] RBF kernel: \[\frac{\partial\mb{K}_y}{\partial\sigma}=\frac{2\mb{K}}{\sigma},\ \frac{\partial\mb{K}_y}{\partial\lambda}=\mb{K}\odot\frac{\lp\mb{x}-\mb{x}'\rp}{\lambda^3},\ \frac{\partial\mb{K}_y}{\partial\sigma_{\eta}}=2\sigma_{\eta}\mb{I}\]
+Let $\varphi$ be a parameter of $\vec{m},\ \vec{y}=\vec{\tilde{F}}-\bm,\ \vec{K}_y=\vec{K}+\sigma_{\eta}^2\vec{I}$: \[\frac{\partial\mathcal{L}}{\partial\varphi}=\frac{1}{2}\lb\lp\frac{\partial\vec{y}^T}{\partial\varphi}\rp\vec{K}_y^{-1}\vec{y}+\vec{y}^T\vec{K}_y\lp\frac{\partial\vec{y}}{\partial\varphi}\rp\rb=\frac{1}{2}\lp2\vec{y}^T\vec{K}_y\lp\frac{\partial\vec{y}}{\partial\varphi}\rp\rp=-\vec{y}^T\vec{K}_y\lp\frac{\partial\vec{m}}{\partial\varphi}\rp\] Let $\theta$ be a parameter of $\vec{k}$: \[\frac{\partial\mathcal{L}}{\partial\theta}=\vec{y}^T\lp\frac{\partial\vec{K}_y^{-1}}{\partial\theta}\rp\vec{y}+\frac{\partial|\vec{K}_y|}{\partial\theta}=-\frac{1}{2}\vec{y}^T\vec{K}^{-1}\lp\frac{\partial\vec{K}_y}{\partial\theta}\rp\vec{K}^{-1}\vec{y}+\frac{1}{2}\text{tr}\lp\vec{K}_y^{-1}\lp\frac{\partial\vec{K}_y}{\partial\theta}\rp\rp\] RBF parameter $\lambda^2$: \[\frac{\partial\vec{K}_y}{\partial\lambda}=\vec{K}\odot\frac{\|\vec{x}-\vec{x}'\|}{\lambda^3}\]
 \end{frame}
 
-\begin{frame}{Implementation}
-Code implementations of all algorithms were written in Python. \blankline The Yosemite sequence consists of 15 $252\times316$ RGBA images, first grayscaled. \blankline Spatial derivatives were computed using Sobel filters. \blankline Temporal derivatives were computed using simple differencing. \blankline Horn-Schunck was performed for 100 iterations using $\lambda=500$. \blankline Lucas-Kanade was performed with $35\times35$ windows. \blankline Gaussian processes were created/fit using PyTorch. \blankline GPs were trained on $25\times31$ downsampled flow fields for memory purposes. \blankline Training ran for 100 iterations using Adam with learning rate $\eta=0.1$.
+\begin{frame}{GP Regression Results}
+\begin{center}\includegraphics[totalheight=2.5cm]{img/yosemite.png}\end{center}
+\begin{center}\includegraphics[totalheight=2.5cm]{img/gaussian-process.png}\end{center}
 \end{frame}
 
-\begin{frame}{Results (Synthetic, Smoothing)}
-\begin{center} \includegraphics[totalheight=4.0cm]{img/12-1.png} \end{center}
-\begin{center} \includegraphics[totalheight=3.0cm]{img/12-2.png} \end{center}
-\end{frame}
-
-\begin{frame}{Results (Synthetic, Interpolation)}
-\begin{center} \includegraphics[totalheight=4.0cm]{img/13-1.png} \end{center}
-\begin{center} \includegraphics[totalheight=3.0cm]{img/13-2.png} \end{center}
-\end{frame}
-
-\begin{frame}{Results (Yosemite, Horn-Schunck)}
-\begin{center} \includegraphics[totalheight=2.5cm]{img/16-1.png} \end{center}
-\begin{center} \includegraphics[totalheight=2.5cm]{img/16-2.png} \end{center}
-\begin{center} \includegraphics[totalheight=2.5cm]{img/16-3.png} \end{center}
-\end{frame}
-
-\begin{frame}{Results (Yosemite, Lucas-Kanade)}
-\begin{center} \includegraphics[totalheight=2.5cm]{img/17-1.png} \end{center}
-\begin{center} \includegraphics[totalheight=2.5cm]{img/17-2.png} \end{center}
-\begin{center} \includegraphics[totalheight=2.5cm]{img/17-3.png} \end{center}
-\end{frame}
-
-\begin{frame}{Next Steps}
-We've successfully enforced spatial smoothness and quantified confidence.
+\begin{frame}{Discussion}
+Our maximum-likelihood method produced an initial estimate and uncertainty. \blankline Our Gaussian-process Bayesian method provided updated these (posterior), after enforcing a global smoothness constraint (Gaussian process prior). \blankline Possible next steps:
 \begin{itemize}
-\item Evaluate against ground truth: \[\text{EPE}=\frac{1}{N}\sum_{i=1}^N\sqrt{(u_i-\hat{u}_i)^2+(v_i-\hat{v}_i)^2}\]
-\item Obtain better observations: FlowNet, RAFT.
-\item Experiment with more complex datasets: KITTI, MPI Sintel, FlyingChairs.
-\item Compare different hyperparameters, identify optimal conditions: \\ Ex: when should I use $L_1$ versus $L_2$ covariance?
-\item Capture nonhomogeneous noise
-\item Exploit efficient representations of sparse flows
-\item Perform segmentation, smooth each segment independently
-\item Extend to 3D spatiotemporal regression (3+ frames)
+\item Obtain better observations: FlowNet, RAFT, etc.
+\item Experiment with more complex covariance kernels.
+\item Perform segmentation, smooth each segment independently.
+\item Extend to spatiotemporal regression (3D, multiple frames).
 \end{itemize}
-Ideas? Questions? Comments?
 \end{frame}
 \end{document}
 
